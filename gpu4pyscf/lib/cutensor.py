@@ -97,6 +97,12 @@ def contraction(
     dtype = np.result_type(a.dtype, b.dtype)
     a = cupy.asarray(a, dtype=dtype)
     b = cupy.asarray(b, dtype=dtype)
+    if a.data.ptr % 256 != 0:
+        a = a.copy()
+    if b.data.ptr % 256 != 0:
+        b = b.copy()
+    if out is not None and out.data.ptr % 256 != 0:
+        return _contract_einsum(pattern, a, b, alpha, beta, out)
     if out is None:
         out = cupy.empty([shape[k] for k in str_c], order='C', dtype=dtype)
     c = out
