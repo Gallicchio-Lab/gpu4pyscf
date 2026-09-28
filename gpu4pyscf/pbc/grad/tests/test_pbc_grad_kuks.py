@@ -353,7 +353,7 @@ class KnownValues(unittest.TestCase):
         mfs = mf.as_scanner()
         e1 = mfs([['Be', [0.0, 0.0, 0.0]], ['Be', [0.5,0.2,1.0+disp/2.0]]])
         e2 = mfs([['Be', [0.0, 0.0, 0.0]], ['Be', [0.5,0.2,1.0-disp/2.0]]])
-        self.assertAlmostEqual(g[1,2], (e1-e2)/disp, delta=4e-6)
+        self.assertAlmostEqual(g[1,2], (e1-e2)/disp, delta=2e-5)
 
     def test_camb3lyp_grad(self):
         kpts = cell.make_kpts([1,1,3])

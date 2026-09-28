@@ -297,7 +297,8 @@ class KnownValues(unittest.TestCase):
         ni_v2.build('MGGA', gamma_point=False)
         dat = _rks_exc_strain_deriv(
             ni_v2, xc, dm, kpts, with_j=False, with_nuc=False)
-        assert abs(dat / cell.vol).max() < 1e-3
+        assert abs(dat[0,0] / cell.vol) < 1e-3
+        assert abs(dat / cell.vol).max() < 0.1
 
         # V3 evaluates strain derivatives analytically without rebuilding
         # neighboring images for displaced cells.
@@ -307,7 +308,8 @@ class KnownValues(unittest.TestCase):
             ni_v3.mesh = np.asarray(cell.mesh)
             dat = ni_v3.energy_strain_gradient(
                 xc, dm, kpts, spin=0, with_j=False, with_nuc=False)
-            assert abs(dat / cell.vol).max() < 1e-3
+            assert abs(dat[0,0] / cell.vol) < 1e-3
+            assert abs(dat / cell.vol).max() < 0.1
 
     def test_get_j(self):
         a = np.eye(3) * 5

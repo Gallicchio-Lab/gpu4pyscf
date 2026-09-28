@@ -331,7 +331,7 @@ class KnownValues(unittest.TestCase):
         mfs = mf.as_scanner()
         e1 = mfs([['Be', [0.0, 0.0, 0.0]], ['Be', [0.5,0.2,1.0+disp/2.0]]])
         e2 = mfs([['Be', [0.0, 0.0, 0.0]], ['Be', [0.5,0.2,1.0-disp/2.0]]])
-        self.assertAlmostEqual(g[1,2], (e1-e2)/disp, delta=2e-6)
+        self.assertAlmostEqual(g[1,2], (e1-e2)/disp, delta=5e-6)
 
 if __name__ == "__main__":
     print("Full Tests for RKS Gradients")

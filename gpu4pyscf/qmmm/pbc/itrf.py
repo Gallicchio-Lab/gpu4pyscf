@@ -401,6 +401,8 @@ class QMMMSCF(QMMM):
         ewald_pot = mm_ewald_pot[2] + qm_ewald_pot[2] / 2
         e += contract('ixy,ixy->', cp.asarray(ewald_pot), self.get_qm_quadrupoles(dm))
         # TODO add energy correction if sum(charges) !=0 ?
+        if hasattr(e, 'item'):
+            e = e.item()
         return e
 
     def energy_nuc(self):
@@ -440,6 +442,10 @@ class QMMMSCF(QMMM):
         nuc = self.energy_nuc()
         ewald = self.energy_ewald(dm=dm, mm_ewald_pot=mm_ewald_pot, qm_ewald_pot=qm_ewald_pot)
         e_tot = self.energy_elec(dm, h1e, vhf)[0] + nuc + ewald
+        if hasattr(ewald, 'item'):
+            ewald = ewald.item()
+        if hasattr(e_tot, 'item'):
+            e_tot = e_tot.item()
         self.scf_summary['nuc'] = nuc.real
         self.scf_summary['ewald'] = ewald
         return e_tot

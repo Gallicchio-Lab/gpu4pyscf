@@ -34,14 +34,17 @@ CLASSIFIERS = None
 PLATFORMS = None
 
 def get_cuda_version():
-    nvcc_out = subprocess.check_output(["nvcc", "--version"]).decode('utf-8')
-    m = re.search(r"V[0-9]+.[0-9]+", nvcc_out)
-    str_version = m.group(0)[1:]
-    major_version, minor_version = str_version.split('.')[:2]
-    if major_version == '12' and int(minor_version) < 4:
-        # code compiled by 12.4+ may not run on 12.1-12.3
-        return major_version + '1'
-    return major_version + 'x'
+    try:
+        nvcc_out = subprocess.check_output(["nvcc", "--version"]).decode('utf-8')
+        m = re.search(r"V[0-9]+.[0-9]+", nvcc_out)
+        str_version = m.group(0)[1:]
+        major_version, minor_version = str_version.split('.')[:2]
+        if major_version == '12' and int(minor_version) < 4:
+            # code compiled by 12.4+ may not run on 12.1-12.3
+            return major_version + '1'
+        return major_version + 'x'
+    except Exception:
+        return 'hip'
 
 def get_version():
     topdir = os.path.abspath(os.path.join(__file__, '..'))
@@ -117,7 +120,24 @@ if 'sdist' in sys.argv:
     CUDA_VERSION = '12x'
 else:
     CUDA_VERSION = get_cuda_version()
-    package_name = NAME + '-cuda' + CUDA_VERSION
+    if CUDA_VERSION == 'hip':
+        package_name = NAME + '-hip'
+        install_reqs = [
+            'pyscf>=2.8.0',
+            'pyscf-dispersion',
+            'geometric',
+            'packaging',
+        ]
+    else:
+        package_name = NAME + '-cuda' + CUDA_VERSION
+        install_reqs = [
+            'pyscf>=2.8.0',
+            'pyscf-dispersion',
+            f'cupy-cuda{CUDA_VERSION}>=13.0,!=13.4.0', # Due to expm in cupyx.scipy.linalg and cutensor 2.0
+            'geometric',
+            f'gpu4pyscf-libxc-cuda{CUDA_VERSION}==0.8.1',
+            'packaging',
+        ]
 
 setup(
     name=package_name,
@@ -138,12 +158,5 @@ setup(
         "pytest-coverage==0.0",
     ],
     cmdclass={'build_py': CMakeBuildPy},
-    install_requires=[
-        'pyscf>=2.8.0',
-        'pyscf-dispersion',
-        f'cupy-cuda{CUDA_VERSION}>=13.0,!=13.4.0', # Due to expm in cupyx.scipy.linalg and cutensor 2.0
-        'geometric',
-        f'gpu4pyscf-libxc-cuda{CUDA_VERSION}==0.8.1',
-        'packaging',
-    ]
+    install_requires=install_reqs
 )

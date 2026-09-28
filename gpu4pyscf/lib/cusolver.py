@@ -21,86 +21,90 @@ from cupy_backends.cuda.libs import cusolver
 from cupy_backends.cuda.libs import cublas
 from cupy.cuda import device
 
-libcusolver = find_library('cusolver')
-libcusolver = ctypes.CDLL(libcusolver)
+_libcusolver_path = find_library('cusolver')
+if _libcusolver_path is not None:
+    libcusolver = ctypes.CDLL(_libcusolver_path)
+    # workspace size (lwork) provided by the cusolver*_bufferSize is an 32-bit
+    # integer. For arrays above this dimension, the workspace size would overflow.
+    MAX_EIGH_DIM = 23150
 
-# workspace size (lwork) provided by the cusolver*_bufferSize is an 32-bit
-# integer. For arrays above this dimension, the workspace size would overflow.
-MAX_EIGH_DIM = 23150
+    CUSOLVER_EIG_TYPE_1 = 1
+    CUSOLVER_EIG_TYPE_2 = 2
+    CUSOLVER_EIG_TYPE_3 = 3
 
-CUSOLVER_EIG_TYPE_1 = 1
-CUSOLVER_EIG_TYPE_2 = 2
-CUSOLVER_EIG_TYPE_3 = 3
+    CUSOLVER_EIG_MODE_NOVECTOR = 0
+    CUSOLVER_EIG_MODE_VECTOR = 1
 
-CUSOLVER_EIG_MODE_NOVECTOR = 0
-CUSOLVER_EIG_MODE_VECTOR = 1
+    libcusolver.cusolverDnDsygvd_bufferSize.restype = int
+    libcusolver.cusolverDnDsygvd.restype = int
 
-libcusolver.cusolverDnDsygvd_bufferSize.restype = int
-libcusolver.cusolverDnDsygvd.restype = int
+    _buffersize = {}
 
-_buffersize = {}
+    # https://docs.nvidia.com/cuda/cusolver/index.html#cusolverdn-t-sygvd
+    libcusolver.cusolverDnDsygvd_bufferSize.argtypes = [
+        ctypes.c_void_p, # handle
+        ctypes.c_int,    # itype
+        ctypes.c_int,    # jobz
+        ctypes.c_int,    # uplo
+        ctypes.c_int,    # n
+        ctypes.c_void_p, # *A
+        ctypes.c_int,    # lda
+        ctypes.c_void_p, # *B
+        ctypes.c_int,    # ldb
+        ctypes.c_void_p, # *w
+        ctypes.c_void_p  # *lwork
+    ]
 
-# https://docs.nvidia.com/cuda/cusolver/index.html#cusolverdn-t-sygvd
-libcusolver.cusolverDnDsygvd_bufferSize.argtypes = [
-    ctypes.c_void_p, # handle
-    ctypes.c_int,    # itype
-    ctypes.c_int,    # jobz
-    ctypes.c_int,    # uplo
-    ctypes.c_int,    # n
-    ctypes.c_void_p, # *A
-    ctypes.c_int,    # lda
-    ctypes.c_void_p, # *B
-    ctypes.c_int,    # ldb
-    ctypes.c_void_p, # *w
-    ctypes.c_void_p  # *lwork
-]
+    libcusolver.cusolverDnDsygvd.argtypes = [
+        ctypes.c_void_p,  # handle
+        ctypes.c_int,     # itype
+        ctypes.c_int,     # jobz
+        ctypes.c_int,     # uplo
+        ctypes.c_int,     # n
+        ctypes.c_void_p,  # *A
+        ctypes.c_int,     # lda
+        ctypes.c_void_p,  # *B
+        ctypes.c_int,     # ldb
+        ctypes.c_void_p,  # *w
+        ctypes.c_void_p,  # *work
+        ctypes.c_int,     # lwork
+        ctypes.c_void_p   # *devInfo
+    ]
 
-libcusolver.cusolverDnDsygvd.argtypes = [
-    ctypes.c_void_p,  # handle
-    ctypes.c_int,     # itype
-    ctypes.c_int,     # jobz
-    ctypes.c_int,     # uplo
-    ctypes.c_int,     # n
-    ctypes.c_void_p,  # *A
-    ctypes.c_int,     # lda
-    ctypes.c_void_p,  # *B
-    ctypes.c_int,     # ldb
-    ctypes.c_void_p,  # *w
-    ctypes.c_void_p,  # *work
-    ctypes.c_int,     # lwork
-    ctypes.c_void_p   # *devInfo
-]
+    # https://docs.nvidia.com/cuda/cusolver/index.html#cusolverdn-t-sygvd
+    libcusolver.cusolverDnZhegvd_bufferSize.argtypes = [
+        ctypes.c_void_p, # handle
+        ctypes.c_int,    # itype
+        ctypes.c_int,    # jobz
+        ctypes.c_int,    # uplo
+        ctypes.c_int,    # n
+        ctypes.c_void_p, # *A
+        ctypes.c_int,    # lda
+        ctypes.c_void_p, # *B
+        ctypes.c_int,    # ldb
+        ctypes.c_void_p, # *w
+        ctypes.c_void_p  # *lwork
+    ]
 
-# https://docs.nvidia.com/cuda/cusolver/index.html#cusolverdn-t-sygvd
-libcusolver.cusolverDnZhegvd_bufferSize.argtypes = [
-    ctypes.c_void_p, # handle
-    ctypes.c_int,    # itype
-    ctypes.c_int,    # jobz
-    ctypes.c_int,    # uplo
-    ctypes.c_int,    # n
-    ctypes.c_void_p, # *A
-    ctypes.c_int,    # lda
-    ctypes.c_void_p, # *B
-    ctypes.c_int,    # ldb
-    ctypes.c_void_p, # *w
-    ctypes.c_void_p  # *lwork
-]
-
-libcusolver.cusolverDnZhegvd.argtypes = [
-    ctypes.c_void_p,  # handle
-    ctypes.c_int,     # itype
-    ctypes.c_int,     # jobz
-    ctypes.c_int,     # uplo
-    ctypes.c_int,     # n
-    ctypes.c_void_p,  # *A
-    ctypes.c_int,     # lda
-    ctypes.c_void_p,  # *B
-    ctypes.c_int,     # ldb
-    ctypes.c_void_p,  # *w
-    ctypes.c_void_p,  # *work
-    ctypes.c_int,     # lwork
-    ctypes.c_void_p   # *devInfo
-]
+    libcusolver.cusolverDnZhegvd.argtypes = [
+        ctypes.c_void_p,  # handle
+        ctypes.c_int,     # itype
+        ctypes.c_int,     # jobz
+        ctypes.c_int,     # uplo
+        ctypes.c_int,     # n
+        ctypes.c_void_p,  # *A
+        ctypes.c_int,     # lda
+        ctypes.c_void_p,  # *B
+        ctypes.c_int,     # ldb
+        ctypes.c_void_p,  # *w
+        ctypes.c_void_p,  # *work
+        ctypes.c_int,     # lwork
+        ctypes.c_void_p   # *devInfo
+    ]
+else:
+    libcusolver = None
+    MAX_EIGH_DIM = 23150
+    _buffersize = {}
 
 def eigh(h, s, overwrite=False):
     '''
@@ -108,6 +112,13 @@ def eigh(h, s, overwrite=False):
     '''
     assert h.dtype == s.dtype
     assert h.dtype in (np.float64, np.complex128)
+    if libcusolver is None:
+        L = cupy.linalg.cholesky(s)
+        Linv = cupy.linalg.inv(L)
+        C = Linv @ h @ (Linv.conj().T if h.dtype == np.complex128 else Linv.T)
+        w, y = cupy.linalg.eigh(C)
+        v = (Linv.conj().T if h.dtype == np.complex128 else Linv.T) @ y
+        return w, v
     n = h.shape[0]
     if h.dtype == np.complex128 and h.flags.c_contiguous:
         # zhegvd requires the matrices in F-order. For hermitian matrices,
@@ -178,6 +189,12 @@ def eigh(h, s, overwrite=False):
     return w, A.T
 
 def cholesky(A):
+    if libcusolver is None:
+        x = cupy.linalg.cholesky(A)
+        diag = cupy.diag(x)
+        if (diag <= 0).any() or cupy.isnan(diag).any():
+            raise LinAlgError('failed to perform Cholesky Decomposition: non-positive diagonal')
+        return x
     n = len(A)
     if A.flags.f_contiguous:
         A = A.T
@@ -190,14 +207,17 @@ def cholesky(A):
         potrf = cusolver.zpotrf
         potrf_bufferSize = cusolver.zpotrf_bufferSize
     buffersize = potrf_bufferSize(handle, cublas.CUBLAS_FILL_MODE_UPPER, n, x.data.ptr, n)
-    workspace = cupy.empty(buffersize, dtype=A.dtype)
+    workspace = cupy.empty(max(buffersize, 1), dtype=A.dtype)
     dev_info = cupy.empty(1, dtype=np.int32)
     potrf(handle, cublas.CUBLAS_FILL_MODE_UPPER, n, x.data.ptr, n,
         workspace.data.ptr, buffersize, dev_info.data.ptr)
 
-    if dev_info[0] != 0:
+    if int(dev_info[0]) != 0:
         raise LinAlgError('failed to perform Cholesky Decomposition')
-    cupy.linalg._util._tril(x,k=0)
+    diag = cupy.diag(x)
+    if (diag <= 0).any() or cupy.isnan(diag).any():
+        raise LinAlgError('failed to perform Cholesky Decomposition: non-positive diagonal')
+    cupy.linalg._util._tril(x, k=0)
     return x
 
 class LinAlgError(RuntimeError):

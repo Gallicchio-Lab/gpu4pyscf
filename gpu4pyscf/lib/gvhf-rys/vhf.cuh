@@ -139,20 +139,34 @@ typedef struct {
     uint8_t fold2yz;
 } Fold3Index;
 
-#ifdef __CUDACC__
+#if defined(__HIPCC__) || defined(__HIP_PLATFORM_AMD__)
+__device__ __forceinline__ unsigned get_smid()
+{
+    return __smid();
+}
+#elif defined(__CUDACC__)
 __device__ __forceinline__ unsigned get_smid()
 {
     unsigned smid;
     asm volatile("mov.u32 %0, %%smid;" : "=r"(smid));
     return smid;
 }
+#endif
 
+#if defined(__HIPCC__) || defined(__HIP_PLATFORM_AMD__)
+// On AMD ROCm/HIP, register allocation and warp/wavefront semantics differ from CUDA.
+// More importantly, unrolled kernels hardcode nsq_per_block (e.g. 256), and doubling threads
+// causes shared memory corruption and out-of-bounds indexing.
+#define adjust_threads(kernel, threads)
+#elif defined(__CUDACC__)
 // to ensure that each SM only executes one block
 #define adjust_threads(kernel, threads) { \
     cudaFuncAttributes attr; \
     cudaFuncGetAttributes(&attr, kernel); \
     if (attr.numRegs <= 128) threads *= 2; }
+#endif
 
+#if defined(__CUDACC__) || defined(__HIPCC__) || defined(__HIP_PLATFORM_AMD__)
 extern __constant__ Fold2Index c_i_in_fold2idx[];
 extern __constant__ Fold3Index c_i_in_fold3idx[];
 

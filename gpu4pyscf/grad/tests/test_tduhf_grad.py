@@ -251,7 +251,11 @@ class KnownValues(unittest.TestCase):
         td_grad.cphf_max_cycle = 0
         td_grad.cphf_conv_tol = 1e9
         dat = td_grad.grad_elec(x_y, singlet=True)
-        self.assertAlmostEqual (lib.fp(dat), -14.006578651492646, 10)
+        td_grad_cpu = mf.to_cpu().TDHF().Gradients()
+        td_grad_cpu.cphf_max_cycle = 0
+        td_grad_cpu.cphf_conv_tol = 1e9
+        ref = td_grad_cpu.grad_elec(x_y.get(), singlet=True)
+        assert abs(dat - ref).max() < 1e-10
 
 if __name__ == "__main__":
     print("Full Tests for TD-UHF Gradient")

@@ -64,6 +64,7 @@ NBAS_MAX = 16777216
 LMAX = 4
 
 _kernel_registery = {}
+WARP_MASK = '0xffffffffffffffffULL' if getattr(cp.cuda.runtime, 'is_hip', False) else '0xffffffff'
 
 def _is_orthogonal_lattice(a):
     return abs(a - np.diag(a.diagonal())).max() < 1e-5
@@ -1026,12 +1027,22 @@ def _conj_dot(a, b):
     '''a.conj().dot(b).real'''
     return vec_dot(a.view(np.float64), b.view(np.float64))
 
+if getattr(cp.cuda.runtime, 'is_hip', False):
+    CUCOMPLEX_HEADER = '''
+#include <hip/hip_complex.h>
+typedef hipDoubleComplex cuDoubleComplex;
+#define make_cuDoubleComplex make_hipDoubleComplex
+#define cuCreal hipCreal
+#define cuCimag hipCimag
+'''
+else:
+    CUCOMPLEX_HEADER = '#include <cuComplex.h>\n'
+
 def _apply_Gv_1j(rhoG, Gx, Gy, Gz, out=None):
     '''einsum('g,g->g', rhoG, Gv[:,n]*1j), n is 0, 1 or 2'''
     fn_name = 'apply_Gv_1j'
     if fn_name not in _kernel_registery:
-        kernel_code = ('''\
-#include <cuComplex.h>
+        kernel_code = CUCOMPLEX_HEADER + ('''\
 extern "C" __global__
 void ''' + fn_name + r'''(cuDoubleComplex* __restrict__ out, cuDoubleComplex *rhoG,
     double *Gx, double *Gy, double *Gz, long long nx, long long ny, long long nz) {
@@ -1061,8 +1072,7 @@ def _contract_Gv_1j(out, xc, Gx, Gy, Gz):
     '''out += einsum('g,g->g', xc[n], Gv[:,n]*-1j), n is 0, 1 or 2'''
     fn_name = 'contract_Gv_1j'
     if fn_name not in _kernel_registery:
-        kernel_code = ('''\
-#include <cuComplex.h>
+        kernel_code = CUCOMPLEX_HEADER + ('''\
 extern "C" __global__
 void ''' + fn_name + r'''(cuDoubleComplex* __restrict__ out, cuDoubleComplex *vxcG,
     double *Gx, double *Gy, double *Gz, long long nx, long long ny, long long nz) {
@@ -1136,7 +1146,7 @@ void ''' + fn_name + r'''(double *energy, double2* __restrict__ rhoG,
         rhoG[g] = coul;
     }
     for (int offset = 16; offset > 0; offset >>= 1) {
-        Ecoul += __shfl_down_sync(0xffffffff, Ecoul, offset);
+        Ecoul += __shfl_down_sync(''' + WARP_MASK + ''', Ecoul, offset);
     }
     __shared__ double swap[32];
     int lane = tid % 32;
@@ -1147,7 +1157,7 @@ void ''' + fn_name + r'''(double *energy, double2* __restrict__ rhoG,
     if (warp == 0) {
         Ecoul = (lane < num_warps) ? swap[lane] : 0.;
         for (int offset = 16; offset > 0; offset >>= 1) {
-            Ecoul += __shfl_down_sync(0xffffffff, Ecoul, offset);
+            Ecoul += __shfl_down_sync(''' + WARP_MASK + ''', Ecoul, offset);
         }
     }
     if (tid == 0) atomicAdd(energy, Ecoul);
@@ -1209,14 +1219,14 @@ int nx, int ny, int nz)
     int num_warps = blockDim.x / 32;
     for (int n = 0; n < 9; n++) {
         for (int offset = 16; offset > 0; offset >>= 1) {
-            sigma[n] += __shfl_down_sync(0xffffffff, sigma[n], offset);
+            sigma[n] += __shfl_down_sync(''' + WARP_MASK + ''', sigma[n], offset);
         }
         if (lane == 0) swap[warp] = sigma[n];
         __syncthreads();
         if (warp == 0) {
             sigma[n] = (lane < num_warps) ? swap[lane] : 0.;
             for (int offset = num_warps/2; offset > 0; offset >>= 1) {
-                sigma[n] += __shfl_down_sync(0xffffffff, sigma[n], offset);
+                sigma[n] += __shfl_down_sync(''' + WARP_MASK + ''', sigma[n], offset);
             }
         }
         if (tid == 0) atomicAdd(out+n, sigma[n]);
@@ -1345,9 +1355,9 @@ double cexp0, double cexp1, double cexp2, double cexp3)
         for (int ia = 0; ia < block; ++ia) {
             if (ia0 + ia >= atom_batch_size) break;
             for (int offset = 16; offset > 0; offset >>= 1) {
-                de[ia*3+0] += __shfl_down_sync(0xffffffff, de[ia*3+0], offset);
-                de[ia*3+1] += __shfl_down_sync(0xffffffff, de[ia*3+1], offset);
-                de[ia*3+2] += __shfl_down_sync(0xffffffff, de[ia*3+2], offset);
+                de[ia*3+0] += __shfl_down_sync(''' + WARP_MASK + ''', de[ia*3+0], offset);
+                de[ia*3+1] += __shfl_down_sync(''' + WARP_MASK + ''', de[ia*3+1], offset);
+                de[ia*3+2] += __shfl_down_sync(''' + WARP_MASK + ''', de[ia*3+2], offset);
             }
             if (lane == 0) {
                 int i_atom = atom_ids[ia0+ia];
@@ -1357,7 +1367,7 @@ double cexp0, double cexp1, double cexp2, double cexp3)
     }
     for (int offset = 16; offset > 0; offset >>= 1) {
         for (int n = 0; n < 9; n++) {
-            sigma[n] += __shfl_down_sync(0xffffffff, sigma[n], offset);
+            sigma[n] += __shfl_down_sync(''' + WARP_MASK + ''', sigma[n], offset);
         }
     }
     if (lane == 0) {
@@ -1461,7 +1471,7 @@ int nx, int ny, int nz, int natm)
         }
         for (int offset = 16; offset > 0; offset >>= 1) {
             for (int n = 0; n < 3; n++) {
-                de[n] += __shfl_down_sync(0xffffffff, de[n], offset);
+                de[n] += __shfl_down_sync(''' + WARP_MASK + ''', de[n], offset);
             }
         }
         if (lane == 0) {
@@ -1470,7 +1480,7 @@ int nx, int ny, int nz, int natm)
     }
     for (int offset = 16; offset > 0; offset >>= 1) {
         for (int n = 0; n < 9; n++) {
-            sigma[n] += __shfl_down_sync(0xffffffff, sigma[n], offset);
+            sigma[n] += __shfl_down_sync(''' + WARP_MASK + ''', sigma[n], offset);
         }
     }
     if (lane == 0) {

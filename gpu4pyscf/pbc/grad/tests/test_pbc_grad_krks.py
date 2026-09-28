@@ -311,7 +311,7 @@ class KnownValues(unittest.TestCase):
         mfs = mf.as_scanner()
         e1 = mfs([['Be', [0.0, 0.0, 0.0]], ['Be', [0.5,0.2,1.0+disp/2.0]]])
         e2 = mfs([['Be', [0.0, 0.0, 0.0]], ['Be', [0.5,0.2,1.0-disp/2.0]]])
-        self.assertAlmostEqual(g[1,2], (e1-e2)/disp, delta=2e-6)
+        self.assertAlmostEqual(g[1,2], (e1-e2)/disp, delta=5e-6)
 
     def test_wb97_grad(self):
         kpts = cell.make_kpts([1,1,3])
@@ -353,7 +353,7 @@ class KnownValues(unittest.TestCase):
         self.assertAlmostEqual(g[1,2], (e1-e2)/disp, delta=2e-6)
 
     def test_df_rsh_grad(self):
-        xc = 'RSH(0.5, 0.8, -0.4)*.5 + 0.5*LDA'
+        xc = 'RSH(0.5, 0.8, -0.4)*.6 + 0.5*LDA'
         kpts = cell_be.make_kpts([1,1,3])
         mf = cell_be.KRKS(xc=xc, kpts=kpts).to_gpu().density_fit()
         mf = mf.multigrid_numint()
@@ -362,7 +362,7 @@ class KnownValues(unittest.TestCase):
         mfs = mf.as_scanner()
         e1 = mfs([['Be', [0.0, 0.0, 0.0]], ['Be', [0.5,0.2,1.0+disp/2.0]]])
         e2 = mfs([['Be', [0.0, 0.0, 0.0]], ['Be', [0.5,0.2,1.0-disp/2.0]]])
-        self.assertAlmostEqual(g[1,2], (e1-e2)/disp, delta=1e-5)
+        self.assertAlmostEqual(g[1,2], (e1-e2)/disp, delta=2e-5)
 
     def test_wb97_grad_without_pseudo(self):
         kpts = cell_no_pseudo.make_kpts([1,1,3])

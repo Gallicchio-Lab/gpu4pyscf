@@ -239,6 +239,8 @@ def _kernel(mf, conv_tol=1e-10, conv_tol_grad=None,
     s1e = cupy.asarray(mf.get_ovlp())
 
     e_tot = mf.energy_tot(dm, h1e, vhf)
+    if hasattr(e_tot, 'item'):
+        e_tot = e_tot.item()
     log.info('init E= %.15g', e_tot)
     x_orth = mf.check_linear_dependency(s1e, log)
     t1 = log.timer('SCF initialization', *t0)
@@ -296,6 +298,8 @@ def _kernel(mf, conv_tol=1e-10, conv_tol_grad=None,
 
         fock = mf.get_fock(h1e, s1e, vhf, dm)  # = h1e + vhf, no DIIS
         e_tot = mf.energy_tot(dm, h1e, vhf)
+        if hasattr(e_tot, 'item'):
+            e_tot = e_tot.item()
         norm_gorb = cupy.linalg.norm(mf.get_grad(mo_coeff, mo_occ, fock))
 
         norm_ddm = cupy.linalg.norm(dm-dm_last)
@@ -370,7 +374,9 @@ def energy_tot(mf, dm=None, h1e=None, vhf=None):
             mf.scf_summary['dispersion'] = e_disp
             e_tot += e_disp
     mf.scf_summary['nuc'] = nuc.real
-    if isinstance(e_tot, cupy.ndarray):
+    if hasattr(e_tot, 'item'):
+        e_tot = e_tot.item()
+    elif isinstance(e_tot, cupy.ndarray):
         e_tot = e_tot.get()
     return e_tot
 

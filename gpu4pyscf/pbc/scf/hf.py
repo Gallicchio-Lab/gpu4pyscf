@@ -473,7 +473,7 @@ def normalize_dm_(mf, dm, s1e=None):
     cell = mf.cell
     if s1e is None:
         s1e = mf.get_ovlp(cell)
-    ne = contract('ij,ji->', dm, s1e).real
+    ne = float(contract('ij,ji->', dm, s1e).real.item())
     if abs(ne - cell.nelectron) > 0.01:
         logger.debug(mf, 'Big errors in the electron number of initial guess '
                      'density matrix (Ne/cell = %g)!', ne)

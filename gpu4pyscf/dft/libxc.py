@@ -42,7 +42,18 @@ for path in path_list:
     libxc_path = os.path.abspath(os.path.join(path, 'gpu4pyscf', 'lib', 'deps', 'lib'))
     try:
         _libxc = np.ctypeslib.load_library('libxc', libxc_path)
-        break
+        is_hip = getattr(cupy.cuda.runtime, 'is_hip', False)
+        if is_hip and _libxc is not None:
+            # Check if this libxc was built for ROCm/HIP or NVIDIA CUDA
+            try:
+                with open(_libxc._name, 'rb') as f:
+                    content = f.read(1024 * 1024)
+                    if b'libamdhip' not in content and b'hipLaunchKernel' not in content:
+                        _libxc = None
+            except Exception:
+                pass
+        if _libxc is not None:
+            break
     except Exception:
         _libxc = None
 
@@ -78,15 +89,12 @@ libgdft.GDFT_xc_mgga.argtypes = (
 if _libxc is None:
     import warnings
     warnings.warn(
-        "Cannot find installed libXC. DFT modules may not work.\n \
-        You can install libXC by \n \
-        `pip3 install gpu4pyscf-libxc-cuda11x` \n \
-        OR \n \
-        `pip3 install gpu4pyscf-libxc-cuda12x`"
+        "Cannot find GPU-compatible libXC. Falling back to PySCF CPU libxc."
     )
-
-_libxc.xc_version_string.restype = ctypes.c_char_p
-__version__ = _libxc.xc_version_string().decode() + ' (CUDA)'
+    __version__ = 'CPU fallback'
+else:
+    _libxc.xc_version_string.restype = ctypes.c_char_p
+    __version__ = _libxc.xc_version_string().decode() + ' (CUDA)'
 
 LDA_OUTPUT_LABELS = [
                 "zk",       # 1, 1
@@ -168,6 +176,9 @@ if _libxc is not None:
         if xc_name in libxc_cpu.XC_CODES:
             assert libxc_cpu.XC_CODES[xc_name] == xc_id, \
                     'Libxc for PySCF and GPU4PySCF incompatible'
+else:
+    XC_IDS = np.array([], dtype=np.int32)
+    XC_CODES = {}
 
 
 def _has_omega(func):

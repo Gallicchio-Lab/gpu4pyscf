@@ -52,7 +52,10 @@ def pin_memory(array):
     return ret
 
 def release_gpu_stack():
-    cupy.cuda.runtime.deviceSetLimit(0x00, 128)
+    try:
+        cupy.cuda.runtime.deviceSetLimit(0x00, 128)
+    except Exception:
+        pass
 
 def print_mem_info():
     mempool = cupy.get_default_memory_pool()
@@ -985,6 +988,11 @@ def grouped_dot(As, Bs, Cs=None):
     sizeof(typename DeviceKernel::ElementC*) +
     sizeof(int64_t) + sizeof(int64_t) + sizeof(int64_t)
     '''
+    if not hasattr(libcupy_helper, 'grouped_dot'):
+        for i in range(groups):
+            Cs[i] = cupy.dot(As[i].T, Bs[i])
+        return Cs
+
     padding = 8 - (total_size % 8)
     total_size += padding
     cutlass_space = cupy.empty(total_size, dtype=cupy.uint8)
@@ -1029,6 +1037,11 @@ def grouped_gemm(As, Bs, Cs=None):
         Cs = []
         for i in range(groups):
             Cs.append(cupy.empty((Ms[i], Ns[i])))
+
+    if not hasattr(libcupy_helper, 'grouped_gemm'):
+        for i in range(groups):
+            Cs[i] = cupy.dot(As[i].T, Bs[i])
+        return Cs
 
     As_ptr, Bs_ptr, Cs_ptr = [], [], []
     for a, b, c in zip(As, Bs, Cs):
@@ -1237,6 +1250,7 @@ def vec_dot(vec1, vec2):
 
     fn_name = 'vec_dot_kernel_order'
     if fn_name not in _kernel_registery:
+        mask = '0xffffffffffffffffULL' if getattr(cupy.cuda.runtime, 'is_hip', False) else '0xffffffff'
         kernel_code = (r'''
 extern "C" __global__
 void ''' + fn_name + r'''(double *out, double *vec1, double *vec2, long long n) {
@@ -1248,7 +1262,7 @@ void ''' + fn_name + r'''(double *out, double *vec1, double *vec2, long long n) 
         sum += vec1[g] * vec2[g];
     }
     for (int offset = 16; offset > 0; offset >>= 1) {
-        sum += __shfl_down_sync(0xffffffff, sum, offset);
+        sum += __shfl_down_sync(''' + mask + r''', sum, offset);
     }
     int lane = tid % 32;
     if (lane == 0) atomicAdd(out, sum);

@@ -12,6 +12,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import os
+if 'HIPCC_COMPILE_FLAGS_APPEND' not in os.environ and os.path.isdir('/usr/lib/gcc/x86_64-linux-gnu/13'):
+    os.environ['HIPCC_COMPILE_FLAGS_APPEND'] = '--gcc-install-dir=/usr/lib/gcc/x86_64-linux-gnu/13'
+
 import numpy as np
 import cupy
 import pyscf
@@ -345,3 +349,35 @@ if pyscf_version <= 12:
             gpu_obj.surface_discretization_method = "SWIG"
         return gpu_obj
     PCM.to_gpu = _smd_to_gpu
+
+# NumPy 2 compatibility patch for pyscf.lib.einsum (einsum_path returns 3 elements instead of 4)
+import pyscf.lib.numpy_helper as _np_helper
+_orig_einsum = _np_helper.einsum
+
+def _numpy2_compat_einsum(subscripts, *tensors, **kwargs):
+    contract = kwargs.pop('_contract', _np_helper._contract)
+    subscripts = subscripts.replace(' ', '')
+    if len(tensors) <= 1 or '...' in subscripts:
+        return _np_helper._numpy_einsum(subscripts, *tensors, **kwargs)
+    elif len(tensors) <= 2:
+        return _np_helper._contract(subscripts, *tensors, **kwargs)
+    else:
+        optimize = kwargs.pop('optimize', True)
+        tensors = list(tensors)
+        contraction_list = _np_helper._einsum_path(subscripts, *tensors, optimize=optimize,
+                                                   einsum_call=True)[1]
+        for contraction in contraction_list:
+            if len(contraction) == 3:
+                inds, einsum_str, remaining = contraction
+            else:
+                inds, idx_rm, einsum_str, remaining = contraction[:4]
+            tmp_operands = [tensors.pop(x) for x in inds]
+            if len(tmp_operands) > 2:
+                out = _np_helper._numpy_einsum(einsum_str, *tmp_operands)
+            else:
+                out = contract(einsum_str, *tmp_operands)
+            tensors.append(out)
+    return out
+
+_np_helper.einsum = _numpy2_compat_einsum
+lib.einsum = _numpy2_compat_einsum

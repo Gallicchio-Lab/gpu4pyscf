@@ -1813,7 +1813,16 @@ def eval_xc_eff(ni, xc_code, rho, deriv=1, omega=None, xctype=None,
 
     # Fall back to the libxc library provided by PySCF, evaluate xc on CPUs
     if not all(x.on_gpu for x, w in xcfuns):
-        ni_cpu = ni.to_cpu()
+        to_cpu_func = getattr(ni, 'to_cpu', None)
+        if callable(to_cpu_func):
+            try:
+                ni_cpu = to_cpu_func()
+            except Exception:
+                from pyscf.dft import numint as numint_cpu
+                ni_cpu = numint_cpu.NumInt()
+        else:
+            from pyscf.dft import numint as numint_cpu
+            ni_cpu = numint_cpu.NumInt()
         ret = ni_cpu.eval_xc_eff(xc_code, rho.get(), deriv, omega=omega, xctype=xctype)
         for i in range(deriv+1):
             ret[i] = cupy.asarray(ret[i])

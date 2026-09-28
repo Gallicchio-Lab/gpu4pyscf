@@ -14,7 +14,6 @@
  * limitations under the License.
  */
 
-#include <complex.h>
 #include <gint/cuda_alloc.cuh>
 #include <gint/gint.h>
 #include <stdio.h>

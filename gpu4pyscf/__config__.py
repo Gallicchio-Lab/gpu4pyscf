@@ -32,12 +32,11 @@ if props['totalGlobalMem'] < 16 * GB:
 mem_fraction = 0.9
 cupy.get_default_memory_pool().set_limit(fraction=mem_fraction)
 
-if props['sharedMemPerBlockOptin'] > 65536:
-    shm_size = props['sharedMemPerBlockOptin']
-    # Resever space for system use
-    shm_size -= 2048
+shared_optin = props.get('sharedMemPerBlockOptin', props.get('sharedMemPerBlock', 65536))
+if shared_optin > 65536:
+    shm_size = shared_optin - 2048
 else:
-    shm_size = props['sharedMemPerBlock']
+    shm_size = props.get('sharedMemPerBlock', 65536)
 
 # Check P2P data transfer is available
 _p2p_access = True
@@ -47,6 +46,10 @@ if num_devices > 1:
             if src != dst:
                 can_access_peer = cupy.cuda.runtime.deviceCanAccessPeer(src, dst)
                 _p2p_access &= can_access_peer
+    if not _p2p_access:
+        # Without peer-to-peer memory access, cross-device grid evaluation
+        # and unified buffers cause memory access errors. Fall back to single GPU.
+        num_devices = 1
 
 # Overwrite the above settings using the global pyscf configs
 from pyscf.__config__ import * # noqa
