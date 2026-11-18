@@ -668,23 +668,30 @@ def _cholesky_eri(intopt, *, omega=None, lr_factor=None, sr_factor=None,
 
 def _decompose_j2c(auxmol, aux_sorting=None,
                    omega=None, lr_factor=None, sr_factor=None):
+    omega, lr_factor, sr_factor = int3c2e_bdiv._check_rsh_factors(
+        auxmol, omega, lr_factor, sr_factor)
     j2c = int3c2e_bdiv.int2c2e(auxmol, omega=omega, lr_factor=lr_factor,
                                sr_factor=sr_factor)
 
-    try:
-        cd_low = cholesky(j2c)
-        aux_coef = auxmol.ctr_coeff
-        aux_coef = solve_triangular(
-            cd_low, aux_coef.T, lower=True, overwrite_b=True).T
-        tag = 'cd'
-    except RuntimeError:
+    if omega <= 0 and not auxmol.mol.cart:
+        try:
+            cd_low = cholesky(j2c)
+            aux_coef = auxmol.ctr_coeff
+            aux_coef = solve_triangular(
+                cd_low, aux_coef.T, lower=True, overwrite_b=True).T
+            tag = 'cd'
+        except (RuntimeError, np.linalg.LinAlgError):
+            tag = 'ed'
+    else:
+        tag = 'ed'
+
+    if tag == 'ed':
         w, v = cp.linalg.eigh(j2c)
         idx = cp.where(w > LINEAR_DEP_THR)[0]
         logger.debug1(auxmol, 'discard %d small eigenvectors for auxiliary dimension',
                       w.size - len(idx))
         v = v[:,idx] / cp.sqrt(w[idx])
         aux_coef = auxmol.apply_C_dot(v, axis=0)
-        tag = 'ed'
 
     if aux_sorting is not None:
         aux_coef, tmp = cp.empty_like(aux_coef), aux_coef

@@ -189,8 +189,11 @@ def eigh(h, s, overwrite=False):
     return w, A.T
 
 def cholesky(A):
-    if libcusolver is None:
-        x = cupy.linalg.cholesky(A)
+    if not hasattr(cusolver, 'dpotrf'):
+        try:
+            x = cupy.linalg.cholesky(A)
+        except Exception as e:
+            raise LinAlgError('failed to perform Cholesky Decomposition') from e
         diag = cupy.diag(x)
         if (diag <= 0).any() or cupy.isnan(diag).any():
             raise LinAlgError('failed to perform Cholesky Decomposition: non-positive diagonal')

@@ -43,7 +43,7 @@ def _gen_metric_solver(int2c, decompose_j2c='CD', lindep=df.LINEAR_DEP_THR):
                 x = solve_triangular(j2c.conj().T, y, lower=False, overwrite_b=False)
                 return cp.asarray(x.reshape(b.shape), order='A')
             return j2c_solver
-        except RuntimeError:
+        except (RuntimeError, np.linalg.LinAlgError):
             pass
 
     w, v = eigh(int2c)
@@ -129,7 +129,7 @@ def _jk_energy_per_atom(int3c2e_opt, dm, j_factor=1, k_factor=1, hermi=0,
     tmp = None
 
     j2c = int2c2e(auxmol, omega=omega, lr_factor=lr_factor, sr_factor=sr_factor)
-    if mol.omega <= 0 and not auxmol.mol.cart:
+    if omega <= 0 and not auxmol.mol.cart:
         metric = aux_coeff.dot(_gen_metric_solver(j2c, 'CD')(aux_coeff.T))
     else:
         metric = aux_coeff.dot(_gen_metric_solver(j2c, 'ED')(aux_coeff.T))
